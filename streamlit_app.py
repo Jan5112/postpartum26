@@ -1,24 +1,59 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 ---
-st.set_page_config(page_title="🌸 媽咪 30 日坐月食譜", layout="wide")
+# --- 1. 樣式設定 (加入置中對齊邏輯) ---
+st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #FFF5F7; } 
     html { font-size: 14px; }
-    h1 { font-size: 1.8rem !important; color: #D87093 !important; }
+    
+    /* 全局文字置中 */
+    .main .block-container {
+        max-width: 800px; /* 限制寬度，令電腦睇落唔會太散 */
+        margin: 0 auto;
+        text-align: center;
+    }
+    
+    /* 標題置中 */
+    h1 { 
+        font-size: 2rem !important; 
+        color: #D87093 !important; 
+        text-align: center !important;
+        margin-bottom: 20px !important;
+    }
+    
+    /* 按鈕樣式 (置中並限制寬度) */
     .stButton>button { 
         background-color: #FFB6C1; color: white !important; 
-        border-radius: 12px; border: none; width: 100%; height: 45px;
-        margin-bottom: 5px; font-size: 14px;
+        border-radius: 15px; border: none; 
+        width: 100%; max-width: 400px; /* 電腦版唔會太闊，手機版會自動填滿 */
+        height: 50px;
+        margin: 5px auto !important; 
+        display: block;
+        font-size: 16px;
+        font-weight: bold;
     }
+    .stButton>button:hover { background-color: #FF9EB5; color: white !important; }
+    
+    /* 詳情頁卡片樣式 (內容改返左對齊方便閱讀) */
     .recipe-card {
-        background-color: white; padding: 20px; border-radius: 15px; 
+        background-color: white; padding: 25px; border-radius: 15px; 
         box-shadow: 0 5px 15px rgba(255,182,193,0.1); 
-        border-left: 8px solid #FFB6C1;
+        border-left: 10px solid #FFB6C1;
+        text-align: left !important; /* 做法同食材左對齊比較好睇 */
     }
+    
+    .recipe-meta { color: #A0A0A0 !important; font-size: 1.1rem; text-align: center; }
+    .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.05rem; }
+    
+    /* 滑桿置中調整 */
+    .stSelectSlider, .stNumberInput {
+        text-align: left; /* 控件內部維持左對齊比較標準 */
+    }
+
+    [data-testid="stSidebar"] { background-color: #FFE4E1; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -41,50 +76,53 @@ def load_data():
 
 df = load_data()
 
-# --- 3. 狀態管理 (確保預設係每日餐單) ---
+# --- 3. 狀態管理 ---
 if 'view' not in st.session_state: st.session_state.view = 'main'
 if 'selected_row' not in st.session_state: st.session_state.selected_row = None
 if 'day_input' not in st.session_state: st.session_state.day_input = 1
 
-# --- 4. 側邊欄 (設定 index=0 確保預設選中第一個) ---
+# --- 4. 側邊欄 ---
 st.sidebar.title("🌸 選單")
-mode = st.sidebar.radio(
-    "跳轉至：", 
-    ["📅 每日餐單", "🗓️ 每週總覽", "🔍 食譜大百科"], 
-    index=0  # <--- 呢度確保咗預設係「每日餐單」
-)
+mode = st.sidebar.radio("跳轉至：", ["📅 媽媽坐月餐單", "🗓️ 每週總覽", "🔍 食譜大百科"], index=0)
 
 # --- 5. 詳情頁面 ---
 if st.session_state.view == 'details':
     recipe = st.session_state.selected_row
+    st.markdown(f"<h1 style='text-align:center;'>{recipe['Dish_Name']}</h1>", unsafe_allow_html=True)
     if st.button("⬅️ 返回"):
         st.session_state.view = 'main'; st.rerun()
-    st.markdown(f"""<div class="recipe-card">
-        <h1>{recipe['Dish_Name']}</h1>
-        <p>📅 第 {recipe['Day']} 天 · {recipe['Meal']}</p><hr>
-        <b style='color:#FFB6C1;'>🛒 食材：</b><p>{recipe['Ingredients']}</p>
-        <b style='color:#FFB6C1;'>👩‍🍳 做法：</b><p>{recipe['Method'].replace('\\n', '<br>')}</p>
-    </div>""", unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class="recipe-card">
+        <p class="recipe-meta">📅 第 {recipe['Day']} 天 · {recipe['Meal']}</p>
+        <hr style='border: 1px solid #FFF0F5;'>
+        <h3 style='color:#FFB6C1;'>🛒 準備食材</h3>
+        <div class="recipe-content">{recipe['Ingredients']}</div>
+        <br>
+        <h3 style='color:#FFB6C1;'>👩‍🍳 烹飪步驟</h3>
+        <div class="recipe-content">{recipe['Method'].replace('\\n', '<br>').replace('\n', '<br>')}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# --- 6. 每日餐單 ---
-elif mode == "📅 每日餐單":
-    st.title("📅 每日養生餐單")
-    c1, c2 = st.columns([2, 1])
-    # 確保輸入值係整數
-    try:
-        curr_day = int(st.session_state.day_input)
-    except:
-        curr_day = 1
-
-    with c1:
-        d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=str(curr_day))
+# --- 6. 媽媽坐月餐單 (置中版) ---
+elif mode == "📅 媽媽坐月餐單":
+    st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
+    
+    # 令 Slider 同 NumberInput 喺中間
+    c1, c2, c3 = st.columns([1, 4, 1])
     with c2:
-        d_num = st.number_input("🔢 輸入天數", min_value=1, max_value=30, value=int(d_slider))
+        try: curr_day = int(st.session_state.day_input)
+        except: curr_day = 1
+        
+        d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=str(curr_day))
+        d_num = st.number_input("🔢 直接輸入天數", min_value=1, max_value=30, value=int(d_slider))
+        st.session_state.day_input = d_num
+
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    st.session_state.day_input = d_num
-    day_df = df[df['Day'] == str(d_num)]
-    
+    day_df = df[df['Day'] == str(st.session_state.day_input)]
     meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
+    
     for m in meals:
         m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
         if not m_data.empty:
@@ -92,11 +130,11 @@ elif mode == "📅 每日餐單":
             if st.button(f"🥘 {m}：{row['Dish_Name']}", key=f"d_{row.name}"):
                 st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
         else:
-            st.markdown(f"<span style='color:#CCC;'>◽ {m}：資料準備中...</span>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:#CCC; text-align:center;'>◽ {m}：資料準備中...</p>", unsafe_allow_html=True)
 
 # --- 7. 每週總覽 ---
 elif mode == "🗓️ 每週總覽":
-    st.title("🗓️ 每週總覽")
+    st.markdown("<h1>🗓️ 每週總覽</h1>", unsafe_allow_html=True)
     week = st.selectbox("選擇星期：", ["第 1 週 (Day 1-7)", "第 2 週 (Day 8-14)", "第 3 週 (Day 15-21)", "第 4 週 (Day 22-30)"])
     week_map = {"第 1 週 (Day 1-7)": (1, 7), "第 2 週 (Day 8-14)": (8, 14), "第 3 週 (Day 15-21)": (15, 21), "第 4 週 (Day 22-30)": (22, 30)}
     start, end = week_map[week]
@@ -112,7 +150,7 @@ elif mode == "🗓️ 每週總覽":
 
 # --- 8. 食譜大百科 ---
 else:
-    st.title("🔍 食譜大百科")
+    st.markdown("<h1>🔍 食譜大百科</h1>", unsafe_allow_html=True)
     cats = {"🥣 粥品": "粥", "🍜 麵食": "麵|粉", "🍚 飯食": "飯", "🍲 湯水": "湯", "🍵 茶飲": "茶"}
     for name, kw in cats.items():
         cat_df = df[df['Dish_Name'].str.contains(kw, na=False)]
