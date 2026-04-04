@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 (加入置中對齊邏輯) ---
+# --- 1. 樣式設定 (強化置中邏輯) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -9,51 +9,66 @@ st.markdown("""
     .stApp { background-color: #FFF5F7; } 
     html { font-size: 14px; }
     
-    /* 全局文字置中 */
+    /* 1. 限制主容器寬度並置中 */
     .main .block-container {
-        max-width: 800px; /* 限制寬度，令電腦睇落唔會太散 */
+        max-width: 700px; 
         margin: 0 auto;
         text-align: center;
     }
     
-    /* 標題置中 */
+    /* 2. 標題置中 */
     h1 { 
-        font-size: 2rem !important; 
+        font-size: 2.2rem !important; 
         color: #D87093 !important; 
         text-align: center !important;
-        margin-bottom: 20px !important;
+        margin-bottom: 25px !important;
     }
     
-    /* 按鈕樣式 (置中並限制寬度) */
+    /* 3. 【關鍵】餐單按鈕置中優化 */
+    .stButton {
+        display: flex;
+        justify-content: center;
+    }
+    
     .stButton>button { 
         background-color: #FFB6C1; color: white !important; 
-        border-radius: 15px; border: none; 
-        width: 100%; max-width: 400px; /* 電腦版唔會太闊，手機版會自動填滿 */
+        border-radius: 20px; border: none; 
+        width: 100%; 
+        max-width: 320px; /* 限制按鈕唔會太闊，睇落更精緻 */
         height: 50px;
-        margin: 5px auto !important; 
-        display: block;
+        margin: 8px auto !important; 
         font-size: 16px;
         font-weight: bold;
+        transition: 0.3s;
+        box-shadow: 0 4px 10px rgba(255,182,193,0.3);
     }
-    .stButton>button:hover { background-color: #FF9EB5; color: white !important; }
     
-    /* 詳情頁卡片樣式 (內容改返左對齊方便閱讀) */
+    .stButton>button:hover { 
+        background-color: #FF9EB5; 
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(255,182,193,0.4);
+    }
+    
+    /* 4. 詳情頁卡片 (內部文字維持左對齊方便閱讀) */
     .recipe-card {
-        background-color: white; padding: 25px; border-radius: 15px; 
-        box-shadow: 0 5px 15px rgba(255,182,193,0.1); 
+        background-color: white; padding: 25px; border-radius: 20px; 
+        box-shadow: 0 10px 25px rgba(255,182,193,0.15); 
         border-left: 10px solid #FFB6C1;
-        text-align: left !important; /* 做法同食材左對齊比較好睇 */
+        text-align: left !important;
+        margin-top: 20px;
     }
     
-    .recipe-meta { color: #A0A0A0 !important; font-size: 1.1rem; text-align: center; }
-    .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.05rem; }
+    .recipe-meta { color: #A0A0A0 !important; font-size: 1.1rem; text-align: center; margin-bottom: 15px; }
+    .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.1rem; }
     
-    /* 滑桿置中調整 */
-    .stSelectSlider, .stNumberInput {
-        text-align: left; /* 控件內部維持左對齊比較標準 */
-    }
-
+    /* 5. 側邊欄顏色 */
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
+    
+    /* 6. 調整 Slider 同 Input 寬度 */
+    .stSelectSlider, .stNumberInput {
+        max-width: 400px;
+        margin: 0 auto;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -104,21 +119,19 @@ if st.session_state.view == 'details':
     </div>
     """, unsafe_allow_html=True)
 
-# --- 6. 媽媽坐月餐單 (置中版) ---
+# --- 6. 媽媽坐月餐單 (全置中優化版) ---
 elif mode == "📅 媽媽坐月餐單":
     st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
     
-    # 令 Slider 同 NumberInput 喺中間
-    c1, c2, c3 = st.columns([1, 4, 1])
-    with c2:
-        try: curr_day = int(st.session_state.day_input)
-        except: curr_day = 1
-        
-        d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=str(curr_day))
-        d_num = st.number_input("🔢 直接輸入天數", min_value=1, max_value=30, value=int(d_slider))
-        st.session_state.day_input = d_num
+    # 控制天數選擇器置中
+    try: curr_day = int(st.session_state.day_input)
+    except: curr_day = 1
+    
+    d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=str(curr_day))
+    d_num = st.number_input("🔢 直接輸入天數", min_value=1, max_value=30, value=int(d_slider))
+    st.session_state.day_input = d_num
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:30px;'></div>", unsafe_allow_html=True)
     
     day_df = df[df['Day'] == str(st.session_state.day_input)]
     meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
@@ -127,10 +140,11 @@ elif mode == "📅 媽媽坐月餐單":
         m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
         if not m_data.empty:
             row = m_data.iloc[0]
+            # 每個按鈕都會自動被 .stButton 的 flex 居中
             if st.button(f"🥘 {m}：{row['Dish_Name']}", key=f"d_{row.name}"):
                 st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
         else:
-            st.markdown(f"<p style='color:#CCC; text-align:center;'>◽ {m}：資料準備中...</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color:#DDD; text-align:center;'>◽ {m}：資料準備中...</p>", unsafe_allow_html=True)
 
 # --- 7. 每週總覽 ---
 elif mode == "🗓️ 每週總覽":
