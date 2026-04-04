@@ -13,9 +13,10 @@ st.markdown("""
     }
     .stButton>button { 
         background-color: #FFB6C1; color: white !important; 
-        border-radius: 20px; border: none; width: 100%; height: 55px;
-        font-size: 18px; font-weight: bold; transition: 0.3s;
+        border-radius: 20px; border: none; width: 100%; height: 50px;
+        font-size: 16px; font-weight: bold; transition: 0.3s;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        margin-bottom: 8px;
     }
     .stButton>button:hover { 
         background-color: #FF9EB5; transform: translateY(-2px);
@@ -26,10 +27,11 @@ st.markdown("""
         box-shadow: 0 10px 20px rgba(255,182,193,0.2); 
         border-left: 12px solid #FFB6C1; margin-top: 20px;
     }
+    [data-testid="stSidebar"] { background-color: #FFE4E1; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 數據讀取與自動對位 ---
+# --- 2. 數據讀取 ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?usp=sharing"
 CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
 
@@ -38,36 +40,35 @@ def load_data():
     try:
         data = pd.read_csv(CSV_URL)
         data.columns = data.columns.str.strip()
-        
         col_map = {
             'Day': 'Day', '天數': 'Day',
             'Meal': 'Meal', '餐次': 'Meal',
             'Dish_Name': 'Dish_Name', '菜品名': 'Dish_Name', '菜名': 'Dish_Name',
             'Ingredients': 'Ingredients', '食材': 'Ingredients',
-            'Method': 'Method', '做法': 'Method', '詳細做法': 'Method'
+            'Method': 'Method', '做法': 'Method'
         }
-        new_cols = {c: col_map[c] for c in data.columns if c in col_map}
-        data = data.rename(columns=new_cols)
-        
-        if 'Meal' in data.columns:
-            data['Meal'] = data['Meal'].astype(str).str.strip()
-        if 'Day' in data.columns:
-            data['Day'] = data['Day'].astype(str).str.strip()
-            
+        data = data.rename(columns=col_map)
+        data['Dish_Name'] = data['Dish_Name'].astype(str).str.strip()
+        data['Day'] = data['Day'].astype(str).str.strip()
         return data
-    except Exception as e:
+    except:
         return None
 
 df = load_data()
 
-if 'view' not in st.session_state: st.session_state.view = 'list'
+# --- 3. 狀態管理 ---
+if 'view' not in st.session_state: st.session_state.view = 'main'
 if 'selected_row' not in st.session_state: st.session_state.selected_row = None
 
-# --- 3. 詳情頁面 ---
-if st.session_state.view == 'details':
+# --- 4. 側邊欄導航 ---
+st.sidebar.title("🌸 選單")
+mode = st.sidebar.radio("你想點搵食譜？", ["📅 每日餐單", "🔍 按類型搵 (粥/湯/飯)"])
+
+# --- 5. 詳情頁面 ---
+def show_details():
     recipe = st.session_state.selected_row
-    if st.button("⬅️ 返回主列表"):
-        st.session_state.view = 'list'
+    if st.button("⬅️ 返回列表"):
+        st.session_state.view = 'main'
         st.rerun()
     
     st.markdown(f"""
@@ -83,41 +84,70 @@ if st.session_state.view == 'details':
     </div>
     """, unsafe_allow_html=True)
 
-# --- 4. 主列表頁面 ---
-else:
-    st.title("🌸 媽咪坐月 30 日食譜")
-    query = st.text_input("🔍 搜尋食材或菜名 (例如：番茄)", placeholder="想食咩呢？")
+# --- 6. 每日餐單頁面 ---
+def show_daily_view():
+    st.title("📅 每日養生餐單")
+    day = st.select_slider("💖 選擇坐月天數", options=list(range(1, 31)), value=1)
     
-    if query:
-        results = df[df['Ingredients'].astype(str).str.contains(query, na=False, case=False) | 
-                     df['Dish_Name'].astype(str).str.contains(query, na=False, case=False)]
-        for i, row in results.iterrows():
+    day_df = df[df['Day'] == str(day)]
+    meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
+    
+    for m in meals:
+        m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
+        if not m_data.empty:
+            row = m_data.iloc[0]
+            if st.button(f"🥘 {m}：{row['Dish_Name']}", key=f"daily_{row.name}"):
+                st.session_state.selected_row = row
+                st.session_state.view = 'details'
+                st.rerun()
+
+# --- 7. 按類型搵食譜頁面 ---
+def show_type_view():
+    st.title("🔍 食譜大百科")
+    st.write("想食粥、食麵、定飲湯？喺度一目了然！")
+
+    # 定義分類關鍵字
+    categories = {
+        "🥣 暖心粥品": "粥",
+        "🍜 滋味麵食": "麵|粉|米粉|河粉",
+        "🍚 營養飯食": "飯|燉飯|炒飯",
+        "🍲 滋補湯水": "湯",
+        "🥬 精選時蔬": "菜|蔬",
+        "🥚 蛋/肉類": "蛋|雞|豬|牛|魚",
+        "🍡 甜品糖水": "糖水|甜",
+        "🍵 養生茶飲": "茶"
+    }
+
+    search_query = st.text_input("💡 直接輸入關鍵字搜尋 (例如：黑豆)", "")
+
+    if search_query:
+        search_results = df[df['Dish_Name'].str.contains(search_query, na=False) | 
+                            df['Ingredients'].str.contains(search_query, na=False)]
+        st.subheader(f"找到「{search_query}」相關食譜：")
+        for i, row in search_results.iterrows():
             if st.button(f"✨ {row['Dish_Name']}", key=f"search_{i}"):
                 st.session_state.selected_row = row
                 st.session_state.view = 'details'
                 st.rerun()
     else:
-        day = st.select_slider("💖 選擇坐月天數", options=list(range(1, 31)), value=1)
-        st.markdown(f"### 📅 第 {day} 天 · 全日餐單")
-        
-        day_df = df[df['Day'] == str(day)]
-        
-        # --- 這裡將宵夜改成了 "滋補湯水" ---
-        # 只要你在 Google Sheet 的「餐次」欄位寫「湯水」或「滋補湯水」，App 就能抓到
-        meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
-        
-        for m in meals:
-            # 加入模糊匹配，如果 Sheet 寫「滋補湯水」或「湯水」都能對應
-            m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
-            
-            if not m_data.empty:
-                row = m_data.iloc[0]
-                if st.button(f"🥣 {m}：{row['Dish_Name']}", key=f"m_{m}"):
-                    st.session_state.selected_row = row
-                    st.session_state.view = 'details'
-                    st.rerun()
-            else:
-                st.markdown(f"<span style='color:#CCC;'>◽ {m}：資料準備中...</span>", unsafe_allow_html=True)
+        # 顯示分類摺疊選單
+        for cat_name, keywords in categories.items():
+            cat_df = df[df['Dish_Name'].str.contains(keywords, na=False)]
+            if not cat_df.empty:
+                with st.expander(cat_name, expanded=False):
+                    cols = st.columns(2)
+                    for idx, (i, row) in enumerate(cat_df.iterrows()):
+                        with cols[idx % 2]:
+                            if st.button(row['Dish_Name'], key=f"cat_{i}"):
+                                st.session_state.selected_row = row
+                                st.session_state.view = 'details'
+                                st.rerun()
 
-if df is None:
-    st.error("⚠️ 讀取數據失敗，請確認 Google Sheet 權限。")
+# --- 8. 主邏輯 ---
+if df is not None:
+    if st.session_state.view == 'details':
+        show_details()
+    elif mode == "📅 每日餐單":
+        show_daily_view()
+    else:
+        show_type_view()
