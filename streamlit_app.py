@@ -1,87 +1,95 @@
 import streamlit as st
 import pandas as pd
 
-# 1. 設置網頁主題顏色 (少女風)
+# 1. 少女風主題設定
 st.set_page_config(page_title="坐月30日食譜", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #FFF0F5; /* 淺粉紅背景 LavenderBlush */
+    .stApp { background-color: #FFF0F5; } /* 淺粉紅背景 */
+    h1, h2, h3, p, span, label, .stMarkdown { color: #4F4F4F !important; } /* 深灰色文字 */
+    .stButton>button { 
+        background-color: #FFB6C1; color: white; border-radius: 15px; border: none; width: 100%;
     }
-    h1, h2, h3, p, span, label {
-        color: #4F4F4F !important; /* 深灰色文字 */
-    }
-    .stButton>button {
-        background-color: #FFB6C1; /* 粉色按鈕 */
-        color: white;
-        border-radius: 20px;
+    .recipe-card {
+        background-color: white; padding: 20px; border-radius: 15px; 
+        border-left: 5px solid #FFB6C1; margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 初始化數據 (實際應用中可讀取 CSV)
-if 'recipe_data' not in st.session_state:
-    # 這裡建立一個範例數據框架
-    st.session_state.recipe_data = pd.DataFrame([
-        {"Day": 1, "Meal": "午餐", "Name": "番茄炒蛋", "Ingredients": "番茄, 雞蛋", "Method": "1.切番茄 2.炒蛋..."},
-        {"Day": 1, "Meal": "晚餐", "Name": "清蒸鱸魚", "Ingredients": "鱸魚, 薑, 蔥", "Method": "1.洗魚 2.蒸10分鐘..."}
-    ])
+# 2. 連接 Google Sheet (請填入你的網址)
+# 注意：要把網址最後的 /edit... 換成 /export?format=csv
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?gid=0#gid=0"
+CSV_URL = SHEET_URL.replace('/edit#gid=', '/export?format=csv&gid=')
 
-st.title("🌸 坐月 30 日食譜管理")
+@st.cache_data(ttl=600) # 每 10 分鐘自動更新一次數據
+def load_data():
+    return pd.read_csv(CSV_URL)
 
-# 3. 搜尋功能
-search_query = st.text_input("🔍 搜尋食材 (例如：番茄)", "")
+try:
+    df = load_data()
+except:
+    st.error("暫時未能讀取數據，請檢查 Google Sheet 連結及權限。")
+    df = pd.DataFrame()
 
-if search_query:
-    filtered_df = st.session_state.recipe_data[
-        st.session_state.recipe_data['Ingredients'].str.contains(search_query) | 
-        st.session_state.recipe_data['Name'].str.contains(search_query)
-    ]
-    st.write(f"找到以下關於 '{search_query}' 的食譜：")
-    for index, row in filtered_df.iterrows():
-        if st.button(f"查看詳情: {row['Name']}", key=f"search_{index}"):
-            st.info(f"**詳細做法：**\n\n{row['Method']}")
+# --- App 內容 ---
+st.title("🌸 媽咪的 30 日養生餐單")
 
-st.divider()
+# 初始化分頁狀態
+if 'page' not in st.session_state:
+    st.session_state.page = 'list'
+if 'selected_recipe' not in st.session_state:
+    st.session_state.selected_recipe = None
 
-# 4. 展示 30 日列表
-day_to_show = st.selectbox("選擇天數", range(1, 31))
-meals = ["早餐", "午餐", "下午茶", "糖水", "晚餐", "宵夜", "炒米茶"]
-
-st.header(f"第 {day_to_show} 天食譜清單")
-
-for meal in meals:
-    # 尋找當天當餐的菜品
-    match = st.session_state.recipe_data[
-        (st.session_state.recipe_data['Day'] == day_to_show) & 
-        (st.session_state.recipe_data['Meal'] == meal)
-    ]
+# --- 功能 A: 詳情頁面 ---
+if st.session_state.page == 'detail':
+    recipe = st.session_state.selected_recipe
+    if st.button("⬅️ 返回列表"):
+        st.session_state.page = 'list'
+        st.rerun()
     
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        if not match.empty:
-            dish_name = match.iloc[0]['Name']
-            if st.button(f"{meal}: {dish_name}", key=f"btn_{day_to_show}_{meal}"):
-                st.write(f"🥣 **{dish_name} 的做法：**")
-                st.write(match.iloc[0]['Method'])
-        else:
-            st.write(f"{meal}: 尚未設定食譜")
+    st.markdown(f"""
+    <div class="recipe-card">
+        <h1>{recipe['Dish_Name']}</h1>
+        <p><b>✨ 功效：</b>{recipe.get('功效', '滋補養生')}</p>
+        <hr>
+        <h3>🛒 食材：</h3>
+        <p>{recipe['Ingredients']}</p>
+        <h3>👩‍🍳 做法：</h3>
+        <p>{recipe['Method'].replace('\\n', '<br>')}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.divider()
+# --- 功能 B: 主列表頁面 ---
+else:
+    # 搜尋欄
+    search = st.text_input("🔍 搜尋食材 (例如：雞蛋、黑豆)", "")
 
-# 5. 修改/加入食譜功能
-with st.expander("➕ 加入 / 修改食譜內容"):
-    with st.form("recipe_form"):
-        new_day = st.number_input("天數", min_value=1, max_value=30)
-        new_meal = st.selectbox("餐次", meals)
-        new_name = st.text_input("菜品名稱")
-        new_ing = st.text_area("食材 (用逗號隔開)")
-        new_method = st.text_area("做法詳情")
+    if search:
+        search_results = df[df['Ingredients'].str.contains(search, na=False) | df['Dish_Name'].str.contains(search, na=False)]
+        st.subheader(f"關於 '{search}' 的搜尋結果：")
+        for _, row in search_results.iterrows():
+            if st.button(f"查看：{row['Dish_Name']}", key=f"search_{row['Day']}_{row['Meal']}"):
+                st.session_state.selected_recipe = row
+                st.session_state.page = 'detail'
+                st.rerun()
+    else:
+        # 選擇天數
+        day = st.slider("選擇坐月天數", 1, 30, 1)
+        st.header(f"📅 第 {day} 天餐單")
         
-        submit = st.form_submit_button("儲存食譜")
-        if submit:
-            # 這裡簡單示範更新 Session State
-            new_row = {"Day": new_day, "Meal": new_meal, "Name": new_name, "Ingredients": new_ing, "Method": new_method}
-            st.session_state.recipe_data = pd.concat([st.session_state.recipe_data, pd.DataFrame([new_row])], ignore_index=True)
-            st.success("食譜已更新！")
+        day_df = df[df['Day'] == day]
+        meals = ["早餐", "午餐", "下午茶", "糖水", "晚餐", "宵夜", "炒米茶"]
+        
+        for m in meals:
+            meal_data = day_df[day_df['Meal'] == m]
+            if not meal_data.empty:
+                row = meal_data.iloc[0]
+                # 按下菜名跳轉
+                if st.button(f"{m}：{row['Dish_Name']}", key=f"list_{m}"):
+                    st.session_state.selected_recipe = row
+                    st.session_state.page = 'detail'
+                    st.rerun()
+            else:
+                st.write(f"⚪ {m}：尚未安排")
