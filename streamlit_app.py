@@ -33,13 +33,12 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?usp=sharing"
 CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
 
-@st.cache_data(ttl=10) # 縮短快取時間至 10 秒，方便即時測試
+@st.cache_data(ttl=10)
 def load_data():
     try:
         data = pd.read_csv(CSV_URL)
-        data.columns = data.columns.str.strip() # 清理標題空格
+        data.columns = data.columns.str.strip()
         
-        # 標題對應表 (中英皆通)
         col_map = {
             'Day': 'Day', '天數': 'Day',
             'Meal': 'Meal', '餐次': 'Meal',
@@ -50,7 +49,6 @@ def load_data():
         new_cols = {c: col_map[c] for c in data.columns if c in col_map}
         data = data.rename(columns=new_cols)
         
-        # 【關鍵修復】清理內容裡的空格
         if 'Meal' in data.columns:
             data['Meal'] = data['Meal'].astype(str).str.strip()
         if 'Day' in data.columns:
@@ -104,16 +102,17 @@ else:
         
         day_df = df[df['Day'] == str(day)]
         
-        # 定義 7 餐順序
-        meals = ["早餐", "午餐", "下午茶", "糖水", "晚餐", "宵夜", "炒米茶"]
+        # --- 這裡將宵夜改成了 "滋補湯水" ---
+        # 只要你在 Google Sheet 的「餐次」欄位寫「湯水」或「滋補湯水」，App 就能抓到
+        meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
         
         for m in meals:
-            # 在過濾時也加入 strip() 確保萬無一失
-            m_data = day_df[day_df['Meal'] == m]
+            # 加入模糊匹配，如果 Sheet 寫「滋補湯水」或「湯水」都能對應
+            m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
             
             if not m_data.empty:
                 row = m_data.iloc[0]
-                if st.button(f"🥘 {m}：{row['Dish_Name']}", key=f"m_{m}"):
+                if st.button(f"🥣 {m}：{row['Dish_Name']}", key=f"m_{m}"):
                     st.session_state.selected_row = row
                     st.session_state.view = 'details'
                     st.rerun()
