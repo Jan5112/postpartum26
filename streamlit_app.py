@@ -1,7 +1,7 @@
 import streamlit as st
 
 # 1. 網頁頁面基本設定
-st.set_page_config(page_title="💕 靚靚媽咪坐月餐單", layout="wide")
+st.set_page_config(page_title="💕 媽媽坐月餐單", layout="wide")
 
 # 2. CSS 樣式 (粉紅主題)
 st.markdown("""
