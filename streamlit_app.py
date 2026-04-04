@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 手機優化版樣式 ---
+# --- 1. 樣式設定 ---
 st.set_page_config(page_title="🌸 媽咪 30 日坐月食譜", layout="wide")
 
 st.markdown("""
@@ -19,11 +19,10 @@ st.markdown("""
         box-shadow: 0 5px 15px rgba(255,182,193,0.1); 
         border-left: 8px solid #FFB6C1;
     }
-    .stTable { overflow-x: auto; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 數據讀取 (加入格式轉換) ---
+# --- 2. 數據讀取 ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?usp=sharing"
 CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
 
@@ -34,25 +33,26 @@ def load_data():
         data.columns = data.columns.str.strip()
         col_map = {'天數': 'Day', 'Day': 'Day', '餐次': 'Meal', 'Meal': 'Meal', '菜品名': 'Dish_Name', 'Dish_Name': 'Dish_Name', '食材': 'Ingredients', '做法': 'Method'}
         data = data.rename(columns=col_map)
-        
-        # 【重要修正】強制將所有欄位轉成文字格式，防止 AttributeError
         for col in ['Day', 'Meal', 'Dish_Name', 'Ingredients', 'Method']:
             if col in data.columns:
                 data[col] = data[col].astype(str).str.strip().replace('nan', '')
-        
         return data
     except: return None
 
 df = load_data()
 
-# --- 3. 狀態管理 ---
+# --- 3. 狀態管理 (確保預設係每日餐單) ---
 if 'view' not in st.session_state: st.session_state.view = 'main'
 if 'selected_row' not in st.session_state: st.session_state.selected_row = None
 if 'day_input' not in st.session_state: st.session_state.day_input = 1
 
-# --- 4. 側邊欄 ---
+# --- 4. 側邊欄 (設定 index=0 確保預設選中第一個) ---
 st.sidebar.title("🌸 選單")
-mode = st.sidebar.radio("跳轉至：", ["📅 每日餐單", "🗓️ 每週總覽", "🔍 按類型搵"])
+mode = st.sidebar.radio(
+    "跳轉至：", 
+    ["📅 每日餐單", "🗓️ 每週總覽", "🔍 食譜大百科"], 
+    index=0  # <--- 呢度確保咗預設係「每日餐單」
+)
 
 # --- 5. 詳情頁面 ---
 if st.session_state.view == 'details':
@@ -67,28 +67,32 @@ if st.session_state.view == 'details':
     </div>""", unsafe_allow_html=True)
 
 # --- 6. 每日餐單 ---
-elif mode == "📅 媽媽每日餐單":
-    st.title("📅 媽媽每日餐單")
+elif mode == "📅 每日餐單":
+    st.title("📅 每日養生餐單")
     c1, c2 = st.columns([2, 1])
+    # 確保輸入值係整數
     try:
-        default_val = int(st.session_state.day_input)
+        curr_day = int(st.session_state.day_input)
     except:
-        default_val = 1
-        
+        curr_day = 1
+
     with c1:
-        d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=str(default_val))
+        d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=str(curr_day))
     with c2:
         d_num = st.number_input("🔢 輸入天數", min_value=1, max_value=30, value=int(d_slider))
     
     st.session_state.day_input = d_num
     day_df = df[df['Day'] == str(d_num)]
     
-    for m in ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]:
+    meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
+    for m in meals:
         m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
         if not m_data.empty:
             row = m_data.iloc[0]
             if st.button(f"🥘 {m}：{row['Dish_Name']}", key=f"d_{row.name}"):
                 st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
+        else:
+            st.markdown(f"<span style='color:#CCC;'>◽ {m}：資料準備中...</span>", unsafe_allow_html=True)
 
 # --- 7. 每週總覽 ---
 elif mode == "🗓️ 每週總覽":
@@ -97,22 +101,20 @@ elif mode == "🗓️ 每週總覽":
     week_map = {"第 1 週 (Day 1-7)": (1, 7), "第 2 週 (Day 8-14)": (8, 14), "第 3 週 (Day 15-21)": (15, 21), "第 4 週 (Day 22-30)": (22, 30)}
     start, end = week_map[week]
     
-    week_df = df[df['Day'].astype(float).between(start, end)]
     table_list = []
     for m in ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]:
         row = {"餐次": m}
         for d in range(start, end+1):
-            t = week_df[(week_df['Day'] == str(d)) & (week_df['Meal'].str.contains(m, na=False))]
+            t = df[(df['Day'] == str(d)) & (df['Meal'].str.contains(m, na=False))]
             row[f"D{d}"] = t['Dish_Name'].iloc[0] if not t.empty else "-"
         table_list.append(row)
     st.table(pd.DataFrame(table_list).set_index('餐次'))
 
-# --- 8. 按類型搵 ---
+# --- 8. 食譜大百科 ---
 else:
     st.title("🔍 食譜大百科")
     cats = {"🥣 粥品": "粥", "🍜 麵食": "麵|粉", "🍚 飯食": "飯", "🍲 湯水": "湯", "🍵 茶飲": "茶"}
     for name, kw in cats.items():
-        # 呢度加咗 .astype(str) 確保唔會再報 AttributeError
         cat_df = df[df['Dish_Name'].str.contains(kw, na=False)]
         if not cat_df.empty:
             with st.expander(name):
