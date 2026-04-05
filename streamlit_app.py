@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 (加入 Slider & Input 粉紅化) ---
+# --- 1. 樣式設定 (專注 Number Input 粉紅化) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -25,25 +25,24 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
     [data-testid="stSidebar"] * { color: #D87093 !important; font-weight: bold !important; }
 
-    /* 🌸 核心修復：Slider (滑動條) 粉紅化 🌸 */
-    /* 條線同粒點顏色 */
-    .st-emotion-cache-1ky8h60, .st-ag, .st-ah, .st-ai { background-color: #FFB6C1 !important; }
-    .st-emotion-cache-1ky8h60 [data-testid="stThumb"] { background-color: #D87093 !important; border: 2px solid #D87093 !important; }
-    .st-emotion-cache-1ky8h60 [data-testid="stTickBarMin"], .st-emotion-cache-1ky8h60 [data-testid="stTickBarMax"] { color: #D87093 !important; }
-    
-    /* Slider 選中部分嘅顏色 (針對新版 Streamlit) */
-    div[data-baseweb="slider"] div[style*="background-color: rgb(255, 75, 75)"],
-    div[data-baseweb="slider"] div[style*="background-color: #ff4b4b"] {
-        background-color: #FFB6C1 !important;
+    /* 🔢 Number Input (數字輸入框) 專屬粉紅化 */
+    /* 邊框顏色 */
+    div[data-baseweb="input"] { 
+        border-color: #FFB6C1 !important; 
     }
-    div[data-baseweb="slider"] div[role="slider"] {
-        background-color: #D87093 !important;
-        box-shadow: 0 0 0 4px rgba(216, 112, 147, 0.2) !important;
+    /* 點擊時的邊框顏色 */
+    div[data-baseweb="input"]:focus-within { 
+        border-color: #D87093 !important; 
+        box-shadow: 0 0 0 1px #D87093 !important; 
     }
-
-    /* 🔢 Number Input (數字輸入框) 粉紅化 */
-    div[data-baseweb="input"] { border-color: #FFB6C1 !important; }
-    div[data-baseweb="input"]:focus-within { border-color: #D87093 !important; box-shadow: 0 0 0 1px #D87093 !important; }
+    /* 數字顏色 */
+    div[data-baseweb="input"] input { 
+        color: #D87093 !important; 
+    }
+    /* ＋同－按鈕嘅顏色 */
+    div[data-testid="stNumberInput"] button {
+        color: #D87093 !important;
+    }
 
     /* Expander 樣式鎖定 */
     .stExpander { border: 1px solid #FFB6C1 !important; border-radius: 15px !important; background-color: white !important; margin-bottom: 10px !important; }
@@ -110,7 +109,11 @@ if st.session_state.view == 'details':
 # --- 6. 媽媽坐月餐單 ---
 elif mode == "📅 媽媽坐月餐單":
     st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
+    
+    # 滑動條還原預設樣式
     d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=st.session_state.day_input)
+    
+    # 直接輸入框會套用粉紅色 CSS
     d_num = st.number_input("🔢 直接輸入天數", min_value=1, max_value=30, value=int(d_slider))
     st.session_state.day_input = str(d_num)
 
