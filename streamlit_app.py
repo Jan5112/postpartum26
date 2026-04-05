@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 (加入手機版表格優化) ---
+# --- 1. 樣式設定 (左邊選單 & 大百科背景優化) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -21,7 +21,35 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(255,182,193,0.2);
     }
     
-    /* 每週總覽：手機版卡片樣式 */
+    /* 1. 左邊選單 (Sidebar) 文字變粉紅 */
+    [data-testid="stSidebar"] { background-color: #FFE4E1; }
+    [data-testid="stSidebar"] .st-emotion-cache-10trblm, 
+    [data-testid="stSidebar"] p, 
+    [data-testid="stSidebar"] span { 
+        color: #D87093 !important; 
+        font-weight: bold !important; 
+    }
+    /* 選單內的單選按鈕顏色 */
+    [data-testid="stSidebar"] label[data-baseweb="radio"] div { color: #D87093 !important; }
+
+    /* 2. 食譜大百科 (Expander) 背景變粉紅 */
+    .stExpander { 
+        border: 1px solid #FFB6C1 !important; 
+        border-radius: 15px !important; 
+        background-color: white !important; 
+        overflow: hidden;
+    }
+    /* 修改 Expander 標題欄背景 */
+    .st-emotion-cache-p5msec { 
+        background-color: #FFFBFC !important; /* 極淺粉紅背景 */
+        border-bottom: 1px solid #FFE4E1 !important;
+    }
+    .stExpander summary { 
+        color: #D87093 !important; 
+        font-weight: bold !important; 
+    }
+
+    /* 每週總覽卡片樣式 */
     .week-card {
         background-color: white; padding: 15px; border-radius: 15px; 
         margin-bottom: 15px; text-align: left;
@@ -32,19 +60,17 @@ st.markdown("""
     .week-meal-item { color: #666666; font-size: 1rem; margin-bottom: 5px; display: flex; }
     .week-meal-label { color: #FFB6C1; font-weight: bold; min-width: 65px; }
 
-    /* 詳情頁內容 */
+    /* 詳情頁內容 (灰色) */
     .recipe-card {
         background-color: white; padding: 25px; border-radius: 20px; 
         box-shadow: 0 10px 25px rgba(255,182,193,0.15); 
         border-left: 10px solid #FFB6C1; text-align: left !important;
     }
     .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.1rem; white-space: pre-wrap; }
-    
-    [data-testid="stSidebar"] { background-color: #FFE4E1; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 數據讀取 ---
+# --- 2. 數據讀取 (保持不變) ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?usp=sharing"
 CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
 
@@ -114,7 +140,7 @@ elif mode == "📅 媽媽坐月餐單":
         else:
             st.markdown(f"<p style='color:#DDD; text-align:center; font-size:13px;'>◽ {m}：資料準備中...</p>", unsafe_allow_html=True)
 
-# --- 7. 每週總覽 (手機優化版) ---
+# --- 7. 每週總覽 ---
 elif mode == "🗓️ 每週總覽":
     st.markdown("<h1>🗓️ 每週總覽</h1>", unsafe_allow_html=True)
     week = st.selectbox("選擇星期：", ["第 1 週 (Day 1-7)", "第 2 週 (Day 8-14)", "第 3 週 (Day 15-21)", "第 4 週 (Day 22-30)"])
@@ -122,22 +148,17 @@ elif mode == "🗓️ 每週總覽":
     start, end = week_map[week]
     
     meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
-    
     for d in range(start, end + 1):
-        # 為每一天整一個卡片
         html_content = f'<div class="week-card"><div class="week-day-title">📅 第 {d} 天</div>'
         has_content = False
-        
         for m in meals:
             target = df[(df['Day'] == str(d)) & (df['Meal'].str.contains(m, na=False))]
             if not target.empty:
                 dish_names = "、".join(target['Dish_Name'].tolist())
                 html_content += f'<div class="week-meal-item"><span class="week-meal-label">{m}：</span><span>{dish_names}</span></div>'
                 has_content = True
-        
         if not has_content:
             html_content += '<div style="color:#CCC;">暫無餐單資料</div>'
-            
         html_content += '</div>'
         st.markdown(html_content, unsafe_allow_html=True)
 
@@ -150,6 +171,5 @@ else:
         if not cat_df.empty:
             with st.expander(name):
                 for i, row in cat_df.iterrows():
-                    # 大百科內按鈕文字顏色稍微調淡
                     if st.button(f"✨ {row['Dish_Name']}", key=f"cat_{i}"):
                         st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
