@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 (專注 Number Input 粉紅化) ---
+# --- 1. 樣式設定 (強化文字顏色鎖定) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -25,34 +25,53 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
     [data-testid="stSidebar"] * { color: #D87093 !important; font-weight: bold !important; }
 
-    /* 🔢 Number Input (數字輸入框) 專屬粉紅化 */
-    /* 邊框顏色 */
-    div[data-baseweb="input"] { 
-        border-color: #FFB6C1 !important; 
+    /* 🔢 Number Input (數字輸入框) */
+    div[data-baseweb="input"] { border-color: #FFB6C1 !important; }
+    div[data-baseweb="input"]:focus-within { border-color: #D87093 !important; box-shadow: 0 0 0 1px #D87093 !important; }
+    div[data-baseweb="input"] input { color: #D87093 !important; }
+    div[data-testid="stNumberInput"] button { color: #D87093 !important; }
+
+    /* 🗓️ 每週總覽卡片 (強制顏色鎖定，防止變白) */
+    .week-card { 
+        background-color: white !important; 
+        padding: 18px; 
+        border-radius: 15px; 
+        margin-bottom: 15px; 
+        text-align: left; 
+        border: 1px solid #FFE4E1 !important; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
     }
-    /* 點擊時的邊框顏色 */
-    div[data-baseweb="input"]:focus-within { 
-        border-color: #D87093 !important; 
-        box-shadow: 0 0 0 1px #D87093 !important; 
-    }
-    /* 數字顏色 */
-    div[data-baseweb="input"] input { 
+    .week-day-title { 
         color: #D87093 !important; 
+        font-weight: bold !important; 
+        font-size: 1.2rem !important; 
+        margin-bottom: 10px !important; 
+        border-bottom: 1px solid #FFF0F5 !important; 
+        padding-bottom: 5px !important; 
     }
-    /* ＋同－按鈕嘅顏色 */
-    div[data-testid="stNumberInput"] button {
-        color: #D87093 !important;
+    .week-meal-item { 
+        color: #666666 !important; /* 確保內容係深灰色 */
+        font-size: 1rem !important; 
+        margin-bottom: 6px !important; 
+        display: flex; 
+    }
+    .week-meal-label { 
+        color: #FFB6C1 !important; /* 標籤係粉紅色 */
+        font-weight: bold !important; 
+        min-width: 65px !important; 
+    }
+    .week-no-data {
+        color: #CCCCCC !important;
+        font-size: 0.9rem !important;
     }
 
-    /* Expander 樣式鎖定 */
+    /* Expander 樣式 */
     .stExpander { border: 1px solid #FFB6C1 !important; border-radius: 15px !important; background-color: white !important; margin-bottom: 10px !important; }
     .stExpander summary { background-color: #FFFBFC !important; color: #D87093 !important; border-radius: 15px !important; }
     .stExpander summary:hover { background-color: #FFF0F5 !important; }
 
-    /* 每週總覽卡片 */
-    .week-card { background-color: white; padding: 15px; border-radius: 15px; margin-bottom: 15px; text-align: left; border: 1px solid #FFE4E1; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .week-day-title { color: #D87093; font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; border-bottom: 1px solid #FFF0F5; padding-bottom: 5px; }
-    .week-meal-label { color: #FFB6C1; font-weight: bold; min-width: 65px; }
+    /* 詳情頁內容 (灰色) */
+    .recipe-card { background-color: white !important; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(255,182,193,0.15); border-left: 10px solid #FFB6C1; text-align: left !important; }
     .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.1rem; white-space: pre-wrap; }
     </style>
     """, unsafe_allow_html=True)
@@ -109,11 +128,7 @@ if st.session_state.view == 'details':
 # --- 6. 媽媽坐月餐單 ---
 elif mode == "📅 媽媽坐月餐單":
     st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
-    
-    # 滑動條還原預設樣式
     d_slider = st.select_slider("💖 選擇天數", options=[str(i) for i in range(1, 31)], value=st.session_state.day_input)
-    
-    # 直接輸入框會套用粉紅色 CSS
     d_num = st.number_input("🔢 直接輸入天數", min_value=1, max_value=30, value=int(d_slider))
     st.session_state.day_input = str(d_num)
 
@@ -149,7 +164,7 @@ elif mode == "🗓️ 每週總覽":
                 html_content += f'<div class="week-meal-item"><span class="week-meal-label">{m}：</span><span>{dish_names}</span></div>'
                 has_content = True
         if not has_content:
-            html_content += '<div style="color:#CCC;">暫無餐單資料</div>'
+            html_content += '<div class="week-no-data">暫無餐單資料</div>'
         html_content += '</div>'
         st.markdown(html_content, unsafe_allow_html=True)
 
