@@ -2,38 +2,43 @@ import streamlit as st
 import pandas as pd
 import re
 
-# --- 1. 樣式設定 (維持靚靚粉紅 + 極簡灰) ---
+# --- 1. 樣式設定 (恢復原本最靚嘅 UI) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #FFF5F7; }
     .main .block-container { max-width: 600px; margin: 0 auto; padding: 1.2rem; }
-    h1 { color: #D87093 !important; font-size: 1.8rem !important; text-align: center; margin-bottom: 20px; }
-    p, span, label, .stCheckbox, .stMarkdown { color: #666666 !important; font-size: 1rem; }
     
-    /* Checkbox 文字大細 */
-    .stCheckbox label p { font-size: 1.1rem !important; font-weight: 500; }
+    h1 { color: #D87093 !important; font-size: 2rem !important; text-align: center; margin-bottom: 25px; }
+    .section-title { color: #D87093; font-size: 1.3rem; font-weight: bold; margin: 20px 0 10px 0; border-left: 5px solid #FFB6C1; padding-left: 10px; }
+    
+    /* 灰色字體鎖定 */
+    p, span, label, .stCheckbox, .stMarkdown { color: #666666 !important; }
 
-    /* 卡片設計 */
-    .check-card {
-        background-color: white; padding: 15px 20px; border-radius: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 15px;
-        border: 1.5px solid #FFE4E1;
-    }
-    
-    .section-title { color: #D87093; font-size: 1.2rem; font-weight: bold; margin: 20px 0 10px 5px; }
-    .usage-text { color: #999999 !important; font-size: 0.85rem; margin-left: 32px; display: block; margin-top: -6px; margin-bottom: 10px; line-height: 1.3; }
-    
-    /* 按鈕樣式回歸 */
+    /* 粉紅按鈕樣式 */
     .stButton>button { 
-        background-color: #FFB6C1; color: white !important; border-radius: 20px; border: none; 
-        width: 100%; min-height: 48px; font-weight: bold; margin-bottom: 10px;
+        background-color: #FFB6C1; color: white !important; 
+        border-radius: 20px; border: none; width: 100%; min-height: 50px;
+        font-size: 1.1rem; font-weight: bold; margin-bottom: 12px;
+        box-shadow: 0 4px 6px rgba(255,182,193,0.3);
     }
+    
+    /* 各種卡片設計 */
+    .recipe-card, .check-card, .week-card {
+        background-color: white; padding: 20px; border-radius: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px;
+        border: 2px solid #FFE4E1;
+    }
+    .usage-text { color: #999999 !important; font-size: 0.85rem; margin-left: 32px; display: block; margin-top: -6px; margin-bottom: 15px; }
+    
+    /* 側邊欄粉紅風格 */
+    [data-testid="stSidebar"] { background-color: #FFE4E1; }
+    [data-testid="stSidebar"] * { color: #D87093 !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 數據讀取 ---
+# --- 2. 數據讀取 (強制不緩存，確保準確) ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?usp=sharing"
 CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
 
@@ -48,85 +53,118 @@ def load_data():
 
 all_df = load_data()
 
-# --- 3. 採購邏輯：深度淨化 + 智能合併 ---
+# --- 3. 採購邏輯：極簡瘦身版 ---
 def get_shopping_summary(df_to_process):
     if df_to_process is None or df_to_process.empty: return {"食材": {}, "調味": {}}
     sea_kws = ['鹽', '糖', '油', '醬', '醋', '粉', '汁', '酒', '蜜', '豉', '麻', '水', '露']
     summary = {"食材": {}, "調味": {}}
-    
     for _, row in df_to_process.iterrows():
         dish = row['Dish_Name']
         d_val = int(row['Day_Int'])
-        
-        # 預處理：清走括號內容，廢話
         raw_content = str(row['Ingredients']).replace('\n', ' ').replace(',', ' ').replace('，', ' ')
         items = re.split(r'[、\s]+', raw_content)
-        
         seen_this_dish = set()
         for raw in items:
             raw = raw.strip()
-            # 1. 移除編號如 "1." "2."
             raw = re.sub(r'^\d+[\.\s]*', '', raw)
             if not raw or raw == 'nan': continue
-            
-            # 2. 提取純食材名 (遇到數字、份、g等就切斷)
-            # 依家會更嚴格咁搵第一個非中文字/非食材名嘅位
-            base_name = re.split(r'(\d+|半|少許|適量|份|g|克|兩|斤|包|隻|支|盒|ml|毫升)', raw)[0].strip()
-            # 移除所有括號雜質
-            base_name = re.sub(r'[\(\)（）]', '', base_name)
-            
+            base_name = re.split(r'(\d+|半|少許|適量|份|g|克|兩|斤|包|隻|支|盒|ml)', raw)[0].strip()
+            base_name = re.sub(r'[\(（].*[\)）]', '', base_name) # 清走所有括號內容
             if not base_name or base_name in seen_this_dish: continue
             seen_this_dish.add(base_name)
-            
             amount = raw.replace(base_name, "").strip()
             cat = "調味" if any(kw in base_name for kw in sea_kws) else "食材"
-            
             if base_name not in summary[cat]:
                 summary[cat][base_name] = {"count": 0, "details": []}
-            
             summary[cat][base_name]["count"] += 1
             summary[cat][base_name]["details"].append(f"Day {d_val} {dish} {amount}")
-            
     return summary
 
-# --- 4. 導航與分頁 ---
-if all_df is not None:
-    st.sidebar.title("🌸 功能選單")
-    mode = st.sidebar.radio("跳轉至：", ["📅 媽媽坐月餐單", "🛒 採購 Check-list", "🗓️ 每週總覽"])
+# --- 4. 狀態管理 ---
+if 'view' not in st.session_state: st.session_state.view = 'main'
+if 'selected_row' not in st.session_state: st.session_state.selected_row = None
+if 'day_input' not in st.session_state: st.session_state.day_input = 1
 
-    if mode == "🛒 採購 Check-list":
+# --- 5. 導航選單 ---
+st.sidebar.title("🌸 功能導航")
+mode = st.sidebar.radio("跳轉至：", ["📅 媽媽坐月餐單", "🗓️ 每週總覽", "🛒 採購 Check-list", "🔍 食譜大百科"])
+
+# --- 6. 頁面分流 ---
+if all_df is not None:
+    # A. 詳情頁面 (按下去看做法)
+    if st.session_state.view == 'details':
+        recipe = st.session_state.selected_row
+        st.markdown(f"<h1>{recipe['Dish_Name']}</h1>", unsafe_allow_html=True)
+        if st.button("⬅️ 返回列表"): st.session_state.view = 'main'; st.rerun()
+        st.markdown(f"""
+        <div class="recipe-card">
+            <p style='text-align:center;'>📅 第 {int(recipe['Day_Int'])} 天 · {recipe['Meal']}</p>
+            <hr style='border:1px solid #FFE4E1;'>
+            <h3 style='color:#D87093;'>🛒 準備食材</h3><p>{recipe['Ingredients']}</p>
+            <h3 style='color:#D87093;'>👩‍🍳 烹飪步驟</h3><p style='white-space:pre-wrap;'>{recipe['Method']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # B. 📅 媽媽坐月餐單 (主要功能)
+    elif mode == "📅 媽媽坐月餐單":
+        st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
+        st.session_state.day_input = st.number_input("🔢 選擇天數 (Day)", 1, 30, st.session_state.day_input)
+        day_df = all_df[all_df['Day_Int'] == st.session_state.day_input]
+        meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
+        for m in meals:
+            m_data = day_df[day_df['Meal'].str.contains(m, na=False)]
+            for _, row in m_data.iterrows():
+                if st.button(f"🥘 {m}：{row['Dish_Name']}", key=f"btn_{row.name}"):
+                    st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
+
+    # C. 🗓️ 每週總覽
+    elif mode == "🗓️ 每週總覽":
+        st.markdown("<h1>🗓️ 每週總覽</h1>", unsafe_allow_html=True)
+        week = st.selectbox("選擇週數", ["第 1 週 (Day 1-7)", "第 2 週 (Day 8-14)", "第 3 週 (Day 15-21)", "第 4 週 (Day 22-30)"])
+        w_map = {"第 1 週 (Day 1-7)": (1, 7), "第 2 週 (Day 8-14)": (8, 14), "第 3 週 (Day 15-21)": (15, 21), "第 4 週 (Day 22-30)": (22, 30)}
+        start, end = w_map[week]
+        for d in range(start, end + 1):
+            day_data = all_df[all_df['Day_Int'] == d]
+            if not day_data.empty:
+                st.markdown(f'<div class="week-card"><b>📅 第 {d} 天</b><br>' + 
+                            "<br>".join([f"· {r['Meal']}: {r['Dish_Name']}" for _, r in day_data.iterrows()]) + '</div>', unsafe_allow_html=True)
+
+    # D. 🛒 採購 Check-list (瘦身修正版)
+    elif mode == "🛒 採購 Check-list":
         st.markdown("<h1>🛒 採購 Check-list</h1>", unsafe_allow_html=True)
         t1, t2 = st.tabs(["📍 睇今日買乜", "📅 一次過買幾日"])
-        
         with t1:
-            s_day = st.number_input("選擇第幾天", 1, 30, 1)
-            work_df = all_df[all_df['Day_Int'] == s_day].copy()
-            u_key = f"s_{s_day}"
+            s_day = st.number_input("選擇第幾天", 1, 30, st.session_state.day_input, key="shop_s")
+            working_df = all_df[all_df['Day_Int'] == s_day].copy()
+            u_key = f"day_{s_day}"
         with t2:
             c1, c2 = st.columns(2)
-            r1 = c1.number_input("由 Day", 1, 30, 1)
-            r2 = c2.number_input("至 Day", 1, 30, r1+1)
-            work_df = all_df[(all_df['Day_Int'] >= r1) & (all_df['Day_Int'] <= r2)].copy()
-            u_key = f"r_{r1}_{r2}"
-
-        if not work_df.empty:
-            data_sum = get_shopping_summary(work_df)
+            r1 = c1.number_input("由 Day", 1, 30, 1, key="shop_r1")
+            r2 = c2.number_input("至 Day", 1, 30, r1+1, key="shop_r2")
+            working_df = all_df[(all_df['Day_Int'] >= r1) & (all_df['Day_Int'] <= r2)].copy()
+            u_key = f"range_{r1}_{r2}"
+        if not working_df.empty:
+            summary = get_shopping_summary(working_df)
             for cat in ["食材", "調味"]:
-                if data_sum[cat]:
-                    st.markdown(f'<div class="section-title">{"🍎 主要食材" if cat=="食材" else "🧂 檢查調味料"}</div>', unsafe_allow_html=True)
+                if summary[cat]:
+                    st.markdown(f'<div class="section-title">{"🍎 主要食材" if cat=="食材" else "🧂 檢查調味"}</div>', unsafe_allow_html=True)
                     st.markdown('<div class="check-card">', unsafe_allow_html=True)
-                    for name, info in data_sum[cat].items():
-                        # 去重顯示用途
+                    for name, info in summary[cat].items():
                         clean_details = list(dict.fromkeys(info["details"]))
                         label = f"{name}" + (f" (x{len(clean_details)})" if len(clean_details) > 1 else "")
-                        st.checkbox(label, key=f"c_{u_key}_{name}")
+                        st.checkbox(label, key=f"chk_{u_key}_{name}")
                         st.markdown(f'<span class="usage-text">📍 {" / ".join(clean_details)}</span>', unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.warning("揀選嘅日子未有資料喔！")
 
-    elif mode == "📅 媽媽坐月餐單":
-        # (這裡保留你原本最靚嘅 Button 詳情頁邏輯)
-        st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
-        # ... (略過重複代碼，確保你的 Button 功能如常) ...
-        st.info("請於側邊欄切換至採購清單體驗新功能！")
+    # E. 🔍 食譜大百科
+    elif mode == "🔍 食譜大百科":
+        st.markdown("<h1>🔍 食譜大百科</h1>", unsafe_allow_html=True)
+        query = st.text_input("🔍 搜尋你想搵嘅食材或菜式名：")
+        if query:
+            search_df = all_df[all_df['Dish_Name'].str.contains(query, na=False) | all_df['Ingredients'].str.contains(query, na=False)]
+            for _, row in search_df.iterrows():
+                if st.button(f"✨ {row['Dish_Name']} (Day {int(row['Day_Int'])})", key=f"q_{row.name}"):
+                    st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
+
+else:
+    st.error("未能載入 Google Sheet，請確認連結正確。")
