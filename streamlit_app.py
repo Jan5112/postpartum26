@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 (左邊選單 & 大百科背景優化) ---
+# --- 1. 樣式設定 (加入 Slider & Input 粉紅化) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -20,57 +20,45 @@ st.markdown("""
         font-size: 15px; font-weight: bold; transition: 0.3s;
         box-shadow: 0 4px 8px rgba(255,182,193,0.2);
     }
-    
-    /* 1. 左邊選單 (Sidebar) 文字變粉紅 */
+
+    /* 左邊選單 */
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
-    [data-testid="stSidebar"] .st-emotion-cache-10trblm, 
-    [data-testid="stSidebar"] p, 
-    [data-testid="stSidebar"] span { 
-        color: #D87093 !important; 
-        font-weight: bold !important; 
-    }
-    /* 選單內的單選按鈕顏色 */
-    [data-testid="stSidebar"] label[data-baseweb="radio"] div { color: #D87093 !important; }
+    [data-testid="stSidebar"] * { color: #D87093 !important; font-weight: bold !important; }
 
-    /* 2. 食譜大百科 (Expander) 背景變粉紅 */
-    .stExpander { 
-        border: 1px solid #FFB6C1 !important; 
-        border-radius: 15px !important; 
-        background-color: white !important; 
-        overflow: hidden;
+    /* 🌸 核心修復：Slider (滑動條) 粉紅化 🌸 */
+    /* 條線同粒點顏色 */
+    .st-emotion-cache-1ky8h60, .st-ag, .st-ah, .st-ai { background-color: #FFB6C1 !important; }
+    .st-emotion-cache-1ky8h60 [data-testid="stThumb"] { background-color: #D87093 !important; border: 2px solid #D87093 !important; }
+    .st-emotion-cache-1ky8h60 [data-testid="stTickBarMin"], .st-emotion-cache-1ky8h60 [data-testid="stTickBarMax"] { color: #D87093 !important; }
+    
+    /* Slider 選中部分嘅顏色 (針對新版 Streamlit) */
+    div[data-baseweb="slider"] div[style*="background-color: rgb(255, 75, 75)"],
+    div[data-baseweb="slider"] div[style*="background-color: #ff4b4b"] {
+        background-color: #FFB6C1 !important;
     }
-    /* 修改 Expander 標題欄背景 */
-    .st-emotion-cache-p5msec { 
-        background-color: #FFFBFC !important; /* 極淺粉紅背景 */
-        border-bottom: 1px solid #FFE4E1 !important;
-    }
-    .stExpander summary { 
-        color: #D87093 !important; 
-        font-weight: bold !important; 
+    div[data-baseweb="slider"] div[role="slider"] {
+        background-color: #D87093 !important;
+        box-shadow: 0 0 0 4px rgba(216, 112, 147, 0.2) !important;
     }
 
-    /* 每週總覽卡片樣式 */
-    .week-card {
-        background-color: white; padding: 15px; border-radius: 15px; 
-        margin-bottom: 15px; text-align: left;
-        border: 1px solid #FFE4E1;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
+    /* 🔢 Number Input (數字輸入框) 粉紅化 */
+    div[data-baseweb="input"] { border-color: #FFB6C1 !important; }
+    div[data-baseweb="input"]:focus-within { border-color: #D87093 !important; box-shadow: 0 0 0 1px #D87093 !important; }
+
+    /* Expander 樣式鎖定 */
+    .stExpander { border: 1px solid #FFB6C1 !important; border-radius: 15px !important; background-color: white !important; margin-bottom: 10px !important; }
+    .stExpander summary { background-color: #FFFBFC !important; color: #D87093 !important; border-radius: 15px !important; }
+    .stExpander summary:hover { background-color: #FFF0F5 !important; }
+
+    /* 每週總覽卡片 */
+    .week-card { background-color: white; padding: 15px; border-radius: 15px; margin-bottom: 15px; text-align: left; border: 1px solid #FFE4E1; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
     .week-day-title { color: #D87093; font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; border-bottom: 1px solid #FFF0F5; padding-bottom: 5px; }
-    .week-meal-item { color: #666666; font-size: 1rem; margin-bottom: 5px; display: flex; }
     .week-meal-label { color: #FFB6C1; font-weight: bold; min-width: 65px; }
-
-    /* 詳情頁內容 (灰色) */
-    .recipe-card {
-        background-color: white; padding: 25px; border-radius: 20px; 
-        box-shadow: 0 10px 25px rgba(255,182,193,0.15); 
-        border-left: 10px solid #FFB6C1; text-align: left !important;
-    }
     .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.1rem; white-space: pre-wrap; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 數據讀取 (保持不變) ---
+# --- 2. 數據讀取 ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZesALwN_63zG-ULARgSgu2zX44qpxYud8Y4qco_4IFI/edit?usp=sharing"
 CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
 
