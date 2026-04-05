@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# --- 1. 樣式設定 (全域灰色文字優化) ---
+# --- 1. 樣式設定 (加入手機版表格優化) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -10,11 +10,9 @@ st.markdown("""
     html { font-size: 14px; }
     .main .block-container { max-width: 800px; margin: 0 auto; text-align: center; }
     
-    /* 標題樣式 */
     h1 { font-size: 2.2rem !important; color: #D87093 !important; text-align: center !important; margin-bottom: 25px !important; }
     
-    /* 按鈕通用樣式 */
-    .stButton { display: flex; justify-content: center; }
+    /* 按鈕樣式 */
     .stButton>button { 
         background-color: #FFB6C1; color: white !important; 
         border-radius: 18px; border: none; width: 100%; max-width: 350px;
@@ -22,30 +20,26 @@ st.markdown("""
         font-size: 15px; font-weight: bold; transition: 0.3s;
         box-shadow: 0 4px 8px rgba(255,182,193,0.2);
     }
-    .stButton>button:hover { background-color: #FF9EB5; transform: translateY(-2px); }
     
-    /* 詳情頁與卡片文字 (灰色) */
+    /* 每週總覽：手機版卡片樣式 */
+    .week-card {
+        background-color: white; padding: 15px; border-radius: 15px; 
+        margin-bottom: 15px; text-align: left;
+        border: 1px solid #FFE4E1;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .week-day-title { color: #D87093; font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; border-bottom: 1px solid #FFF0F5; padding-bottom: 5px; }
+    .week-meal-item { color: #666666; font-size: 1rem; margin-bottom: 5px; display: flex; }
+    .week-meal-label { color: #FFB6C1; font-weight: bold; min-width: 65px; }
+
+    /* 詳情頁內容 */
     .recipe-card {
         background-color: white; padding: 25px; border-radius: 20px; 
         box-shadow: 0 10px 25px rgba(255,182,193,0.15); 
         border-left: 10px solid #FFB6C1; text-align: left !important;
     }
-    .recipe-meta { color: #A0A0A0 !important; font-size: 1.1rem; text-align: center; }
     .recipe-content { color: #666666 !important; line-height: 1.8; font-size: 1.1rem; white-space: pre-wrap; }
     
-    /* 表格樣式優化 (文字轉灰色) */
-    .stTable td, .stTable th {
-        color: #666666 !important;
-        text-align: center !important;
-        vertical-align: middle !important;
-        border: 1px solid #FFE4E1 !important;
-    }
-    .stTable thead tr th { background-color: #FFFBFC !important; color: #D87093 !important; }
-
-    /* 食譜大百科 Expander 文字 (灰色) */
-    .stExpander { border-radius: 15px !important; border: 1px solid #FFE4E1 !important; background-color: white !important; }
-    .stExpander p { color: #666666 !important; }
-
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
     </style>
     """, unsafe_allow_html=True)
@@ -65,7 +59,6 @@ def load_data():
         for col in ['Day', 'Meal', 'Dish_Name', 'Ingredients', 'Method']:
             if col in data.columns:
                 data[col] = data[col].astype(str).str.strip().replace('nan', '')
-        # 統一 Day 格式為字串整數
         data['Day'] = data['Day'].apply(lambda x: str(int(float(x))) if x.replace('.','',1).isdigit() else x)
         return data
     except: return None
@@ -90,7 +83,7 @@ if st.session_state.view == 'details':
     
     st.markdown(f"""
     <div class="recipe-card">
-        <p class="recipe-meta">📅 第 {recipe['Day']} 天 · {recipe['Meal']}</p>
+        <p style="text-align:center; color:#A0A0A0;">📅 第 {recipe['Day']} 天 · {recipe['Meal']}</p>
         <hr style='border: 1px solid #FFF0F5;'>
         <h3 style='color:#FFB6C1;'>🛒 準備食材</h3>
         <div class="recipe-content">{recipe['Ingredients']}</div>
@@ -121,32 +114,34 @@ elif mode == "📅 媽媽坐月餐單":
         else:
             st.markdown(f"<p style='color:#DDD; text-align:center; font-size:13px;'>◽ {m}：資料準備中...</p>", unsafe_allow_html=True)
 
-# --- 7. 每週總覽 (修復版) ---
+# --- 7. 每週總覽 (手機優化版) ---
 elif mode == "🗓️ 每週總覽":
     st.markdown("<h1>🗓️ 每週總覽</h1>", unsafe_allow_html=True)
     week = st.selectbox("選擇星期：", ["第 1 週 (Day 1-7)", "第 2 週 (Day 8-14)", "第 3 週 (Day 15-21)", "第 4 週 (Day 22-30)"])
     week_map = {"第 1 週 (Day 1-7)": (1, 7), "第 2 週 (Day 8-14)": (8, 14), "第 3 週 (Day 15-21)": (15, 21), "第 4 週 (Day 22-30)": (22, 30)}
     start, end = week_map[week]
     
-    # 建立空的表格結構
-    table_data = []
     meals = ["早餐", "午餐", "下午茶", "糖水", "湯水", "晚餐", "炒米茶"]
     
-    for m in meals:
-        row_dict = {"餐次": m}
-        for d in range(start, end + 1):
-            # 搵出嗰日嗰餐所有嘢食
+    for d in range(start, end + 1):
+        # 為每一天整一個卡片
+        html_content = f'<div class="week-card"><div class="week-day-title">📅 第 {d} 天</div>'
+        has_content = False
+        
+        for m in meals:
             target = df[(df['Day'] == str(d)) & (df['Meal'].str.contains(m, na=False))]
             if not target.empty:
-                row_dict[f"D{d}"] = "\n".join(target['Dish_Name'].tolist())
-            else:
-                row_dict[f"D{d}"] = "-"
-        table_data.append(row_dict)
-    
-    final_df = pd.DataFrame(table_data).set_index('餐次')
-    st.table(final_df)
+                dish_names = "、".join(target['Dish_Name'].tolist())
+                html_content += f'<div class="week-meal-item"><span class="week-meal-label">{m}：</span><span>{dish_names}</span></div>'
+                has_content = True
+        
+        if not has_content:
+            html_content += '<div style="color:#CCC;">暫無餐單資料</div>'
+            
+        html_content += '</div>'
+        st.markdown(html_content, unsafe_allow_html=True)
 
-# --- 8. 食譜大百科 (灰色文字優化) ---
+# --- 8. 食譜大百科 ---
 else:
     st.markdown("<h1>🔍 食譜大百科</h1>", unsafe_allow_html=True)
     cats = {"🥣 粥品": "粥", "🍜 麵食": "麵|粉", "🍚 飯食": "飯", "🍲 湯水": "湯", "🍵 茶飲": "茶"}
@@ -154,7 +149,7 @@ else:
         cat_df = df[df['Dish_Name'].str.contains(kw, na=False)]
         if not cat_df.empty:
             with st.expander(name):
-                # Expander 內的文字已經透過 CSS 轉為灰色
                 for i, row in cat_df.iterrows():
+                    # 大百科內按鈕文字顏色稍微調淡
                     if st.button(f"✨ {row['Dish_Name']}", key=f"cat_{i}"):
-                        st.session_state.selected_row
+                        st.session_state.selected_row = row; st.session_state.view = 'details'; st.rerun()
