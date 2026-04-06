@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 
-# --- 1. 樣式設定 ---
+# --- 1. 樣式設定 (樣式鎖死) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
@@ -24,7 +24,10 @@ st.markdown("""
     }
     .usage-text { color: #888888 !important; font-size: 0.9rem; padding: 8px 12px; background: #FFF9FA; border-radius: 10px; margin: 5px 0; display: block; }
     .section-title { color: #D87093 !important; font-size: 1.3rem; font-weight: bold; margin: 20px 0 10px 0; border-left: 5px solid #FFB6C1; padding-left: 10px; }
+    
+    /* 側欄手機優化 */
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
+    [data-testid="stSidebarContent"] { padding-top: 2rem; }
     [data-testid="stSidebar"] * { color: #D87093 !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -44,33 +47,41 @@ def load_data():
 
 all_df = load_data()
 
-# --- 3. 採購邏輯 ---
+# --- 3. 採購邏輯 (嚴格隔離日期) ---
 def get_shopping_summary(df_to_process, target_days):
+    # 物理隔離：只取選定日子的資料
     clean_df = df_to_process[df_to_process['Day_Int'].isin(target_days)].copy()
     sea_kws = ['鹽', '糖', '油', '醬', '醋', '粉', '汁', '酒', '蜜', '豉', '麻', '水', '露']
     summary = {"食材": {}, "調味": {}}
+    
     for _, row in clean_df.iterrows():
         dish = row['Dish_Name']
         d_val = int(row['Day_Int'])
         raw_ings = str(row['Ingredients']).replace('\n', '、').replace(',', '、').replace('，', '、')
         items = [i.strip() for i in raw_ings.split('、') if i.strip()]
+        
         for raw in items:
             raw = re.sub(r'^\d+[\.\s]*', '', raw)
             if not raw or raw == 'nan': continue
             base_name = re.split(r'(\d+|半|少許|適量|份|g|克|兩|斤|包|隻|支|盒|ml)', raw)[0].strip()
             base_name = re.sub(r'[\(（].*[\)）]', '', base_name)
             if not base_name: continue
+            
             amount = raw.replace(base_name, "").strip()
             cat = "調味" if any(kw in base_name for kw in sea_kws) else "食材"
-            if base_name not in summary[cat]: summary[cat][base_name] = {"details": []}
-            summary[cat][base_name]["details"].append(f"📍 Day {d_val} | {dish} ({amount if amount else '適量'})")
+            
+            if base_name not in summary[cat]:
+                summary[cat][base_name] = {"details": []}
+            
+            # 存入細節時，確保只存入目前選定日子的原因
+            detail_entry = f"📍 Day {d_val} | {dish} ({amount if amount else '適量'})"
+            summary[cat][base_name]["details"].append(detail_entry)
     return summary
 
-# --- 4. 狀態管理 (新增記憶功能) ---
+# --- 4. 狀態管理 (記憶與導航) ---
 if 'view' not in st.session_state: st.session_state.view = 'main'
 if 'selected_row' not in st.session_state: st.session_state.selected_row = None
 if 'last_mode' not in st.session_state: st.session_state.last_mode = "📅 媽媽坐月餐單"
-# 記憶天數
 if 'memo_day' not in st.session_state: st.session_state.memo_day = 1
 
 # --- 5. 主程式 ---
@@ -78,6 +89,7 @@ if all_df is not None:
     st.sidebar.title("🌸 功能導航")
     mode = st.sidebar.radio("跳轉至：", ["📅 媽媽坐月餐單", "🗓️ 每週總覽", "🛒 採購 Check-list", "🔍 食譜大百科"])
 
+    # 如果切換了選單，強制關閉詳情視窗
     if mode != st.session_state.last_mode:
         st.session_state.view = 'main'
         st.session_state.last_mode = mode
@@ -87,7 +99,7 @@ if all_df is not None:
     if st.session_state.view == 'details':
         r = st.session_state.selected_row
         st.markdown(f"<h1>{r['Dish_Name']}</h1>", unsafe_allow_html=True)
-        if st.button("⬅️ 返回"): 
+        if st.button("⬅️ 返回上一頁"): 
             st.session_state.view = 'main'
             st.rerun()
         
@@ -103,10 +115,10 @@ if all_df is not None:
         </div>
         """, unsafe_allow_html=True)
 
-    # B. 📅 媽媽坐月餐單 (帶記憶功能)
+    # B. 📅 媽媽坐月餐單
     elif mode == "📅 媽媽坐月餐單":
         st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
-        # 使用 session_state 記憶選擇的天數
+        # 使用 memo_day 記憶天數
         sel_d = st.number_input("🔢 選擇天數", 1, 30, value=st.session_state.memo_day)
         st.session_state.memo_day = sel_d
         
@@ -131,17 +143,17 @@ if all_df is not None:
                 items = "".join([f"· <span class='meal-label'>{r['Meal']}</span>: {r['Dish_Name']}<br>" for _, r in d_data.iterrows()])
                 st.markdown(f'<div class="week-card"><b style="color:#D87093;">📅 第 {d} 天</b><br>{items}</div>', unsafe_allow_html=True)
 
-    # D. 🛒 採購 Check-list (自動收納)
+    # D. 🛒 採購 Check-list (徹底隔離日期)
     elif mode == "🛒 採購 Check-list":
         st.markdown("<h1>🛒 採購 Check-list</h1>", unsafe_allow_html=True)
-        t1, t2 = st.tabs(["📍 睇今日買乜", "📅 一次過買幾日"])
+        t1, t2 = st.tabs(["📍 今日清單", "📅 多日清單"])
         with t1:
-            s_d = st.number_input("選擇天數", 1, 30, value=st.session_state.memo_day, key="s_d_chk")
+            s_d = st.number_input("選擇天數", 1, 30, value=st.session_state.memo_day, key="s_d_chk_v2")
             target = [s_d]
         with t2:
             c1, c2 = st.columns(2)
-            r1 = c1.number_input("由 Day", 1, 30, 1, key="r1_chk")
-            r2 = c2.number_input("至 Day", 1, 30, r1+1, key="r2_chk")
+            r1 = c1.number_input("由 Day", 1, 30, 1, key="r1_chk_v2")
+            r2 = c2.number_input("至 Day", 1, 30, r1+1, key="r2_chk_v2")
             target = list(range(int(r1), int(r2) + 1))
         
         data_sum = get_shopping_summary(all_df, target)
@@ -150,37 +162,37 @@ if all_df is not None:
                 st.markdown(f'<div class="section-title">{"🍎 主要食材" if cat=="食材" else "🧂 檢查調味"}</div>', unsafe_allow_html=True)
                 st.markdown('<div class="check-card">', unsafe_allow_html=True)
                 for name, info in data_sum[cat].items():
-                    final_details = list(dict.fromkeys(info["details"]))
+                    # 確保細節入面只顯示符合 target 嘅嘢
+                    final_details = [d for d in info["details"] if any(f"Day {t} |" in d for t in target)]
                     if not final_details: continue
-                    col_cb, col_exp = st.columns([0.1, 0.9])
-                    with col_cb: st.checkbox("", key=f"cb_{name}_{cat}_{target[0]}")
+                    
+                    col_cb, col_exp = st.columns([0.15, 0.85])
+                    with col_cb: st.checkbox("", key=f"cb_v3_{name}_{cat}_{target[0]}")
                     with col_exp:
-                        # 使用 expander 但唔設預設開啟
-                        with st.expander(f"{name} (共 {len(final_details)} 份)"):
+                        with st.expander(f"{name} (共 {len(final_details)} 份)", expanded=False):
                             for d in final_details:
                                 st.markdown(f'<span class="usage-text">{d}</span>', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-    # E. 🔍 食譜大百科 (跳轉後自動收起)
+    # E. 🔍 食譜大百科
     elif mode == "🔍 食譜大百科":
         st.markdown("<h1>🔍 食譜大百科</h1>", unsafe_allow_html=True)
         q = st.text_input("🔍 搜尋食材或菜名：")
         if q:
             s_df = all_df[all_df['Dish_Name'].str.contains(q, na=False, case=False)]
             for _, row in s_df.iterrows():
-                if st.button(f"✨ Day {int(row['Day_Int'])} | {row['Dish_Name']}", key=f"q_{row.name}"):
+                if st.button(f"✨ Day {int(row['Day_Int'])} | {row['Dish_Name']}", key=f"q_v3_{row.name}"):
                     st.session_state.selected_row = row
                     st.session_state.view = 'details'
                     st.rerun()
         st.markdown("<hr>", unsafe_allow_html=True)
         cats = {"🥣 營養粥類": ["粥"], "🍝 麵食/主食": ["麵", "米粉", "河粉", "飯"], "🥘 精選菜式": ["雞", "豬", "牛", "魚", "蛋"], "🥣 滋補湯水": ["湯"], "🍵 甜品/炒米茶": ["糖水", "茶"]}
         for cat_name, kw in cats.items():
-            # 改為用 st.session_state 控制或者預設唔好 open 咁多
             with st.expander(cat_name, expanded=False):
                 cat_df = all_df[all_df['Dish_Name'].str.contains('|'.join(kw), na=False, case=False)]
                 unique_dishes = cat_df.drop_duplicates(subset=['Dish_Name'])
                 for _, row in unique_dishes.iterrows():
-                    if st.button(f"▪️ {row['Dish_Name']}", key=f"cat_{cat_name}_{row.name}"):
+                    if st.button(f"▪️ {row['Dish_Name']}", key=f"cat_v3_{cat_name}_{row.name}"):
                         st.session_state.selected_row = row
                         st.session_state.view = 'details'
                         st.rerun()
