@@ -3,34 +3,40 @@ import pandas as pd
 import re
 from datetime import date, timedelta
 
-# --- 1. 樣式設定 ---
+# --- 1. 樣式設定 (保持粉紅與深灰對比) ---
 st.set_page_config(page_title="🌸 媽媽坐月餐單", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #FFF5F7; }
     .main .block-container { max-width: 600px; margin: 0 auto; padding: 1.2rem; }
+    
     h1, h2, h3 { color: #D87093 !important; text-align: center; font-weight: bold !important; }
     .meal-label { color: #FF99AA !important; font-weight: bold !important; font-size: 1.1rem; }
+    
     p, span, label, .stCheckbox, .stMarkdown, div { color: #555555 !important; }
+    
     .stButton>button { 
         background-color: #FFB6C1; color: white !important; 
         border-radius: 20px; border: none; width: 100%; min-height: 50px;
         font-size: 1.1rem; font-weight: bold; margin-bottom: 12px;
     }
-    .recipe-card, .check-card, .week-card {
+    
+    .recipe-card, .week-card {
         background-color: white !important; padding: 25px; border-radius: 25px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px;
         border: 2px solid #FFE4E1;
     }
-    .usage-text { color: #888888 !important; font-size: 0.9rem; padding: 8px 12px; background: #FFF9FA; border-radius: 10px; margin: 5px 0; display: block; }
+    
     .section-title { color: #D87093 !important; font-size: 1.3rem; font-weight: bold; margin: 20px 0 10px 0; border-left: 5px solid #FFB6C1; padding-left: 10px; }
+    
     [data-testid="stSidebar"] { background-color: #FFE4E1; }
+    [data-testid="stSidebarContent"] { padding-top: 2rem; }
     [data-testid="stSidebar"] * { color: #D87093 !important; font-weight: bold !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 設定手術日期 (Day 0) ---
+# --- 2. 設定基準日期 (Day 0) ---
 SURGERY_DATE = date(2026, 4, 13)
 
 # --- 3. 數據讀取 ---
@@ -48,59 +54,32 @@ def load_data():
 
 all_df = load_data()
 
-# --- 4. 輔助函數：日期轉 Day ---
+# --- 4. 輔助函數 ---
 def date_to_day(selected_date):
-    delta = (selected_date - SURGERY_DATE).days
-    return delta
+    return (selected_date - SURGERY_DATE).days
 
 def day_to_date(day_num):
     return SURGERY_DATE + timedelta(days=day_num)
 
-# --- 5. 採購邏輯 ---
-def get_shopping_summary(df_to_process, target_days):
-    clean_df = df_to_process[df_to_process['Day_Int'].isin(target_days)].copy()
-    sea_kws = ['鹽', '糖', '油', '醬', '醋', '粉', '汁', '酒', '蜜', '豉', '麻', '水', '露']
-    summary = {"食材": {}, "調味": {}}
-    
-    for _, row in clean_df.iterrows():
-        dish = row['Dish_Name']
-        d_val = int(row['Day_Int'])
-        raw_ings = str(row['Ingredients']).replace('\n', '、').replace(',', '、').replace('，', '、')
-        items = [i.strip() for i in raw_ings.split('、') if i.strip()]
-        
-        for raw in items:
-            raw = re.sub(r'^\d+[\.\s]*', '', raw)
-            if not raw or raw == 'nan': continue
-            base_name = re.split(r'(\d+|半|少許|適量|份|g|克|兩|斤|包|隻|支|盒|ml)', raw)[0].strip()
-            base_name = re.sub(r'[\(（].*[\)）]', '', base_name)
-            if not base_name: continue
-            
-            amount = raw.replace(base_name, "").strip()
-            cat = "調味" if any(kw in base_name for kw in sea_kws) else "食材"
-            if base_name not in summary[cat]: summary[cat][base_name] = {"details": []}
-            
-            # 同時顯示日期
-            d_str = day_to_date(d_val).strftime("%m/%d")
-            summary[cat][base_name]["details"].append(f"📍 {d_str} (Day {d_val}) | {dish} ({amount if amount else '適量'})")
-    return summary
-
-# --- 6. 狀態管理 ---
+# --- 5. 狀態管理 ---
 if 'view' not in st.session_state: st.session_state.view = 'main'
 if 'selected_row' not in st.session_state: st.session_state.selected_row = None
 if 'last_mode' not in st.session_state: st.session_state.last_mode = "📅 媽媽坐月餐單"
-if 'current_date' not in st.session_state: st.session_state.current_date = date(2026, 4, 14) # 預設術後第一日
+if 'current_date' not in st.session_state: st.session_state.current_date = date(2026, 4, 14)
 
-# --- 7. 主程式 ---
+# --- 6. 主程式 ---
 if all_df is not None:
     st.sidebar.title("🌸 功能導航")
-    mode = st.sidebar.radio("跳轉至：", ["📅 媽媽坐月餐單", "🗓️ 每週總覽", "🛒 採購 Check-list", "🔍 食譜大百科"])
+    # 這裡已將「採購 Check-list」選項刪除
+    mode = st.sidebar.radio("跳轉至：", ["📅 媽媽坐月餐單", "🗓️ 每週總覽", "🔍 食譜大百科"])
 
+    # 切換功能時重置頁面
     if mode != st.session_state.last_mode:
         st.session_state.view = 'main'
         st.session_state.last_mode = mode
         st.rerun()
 
-    # A. 詳情頁
+    # A. 詳情頁 (食譜內容)
     if st.session_state.view == 'details':
         r = st.session_state.selected_row
         d_int = int(r['Day_Int'])
@@ -123,19 +102,17 @@ if all_df is not None:
         </div>
         """, unsafe_allow_html=True)
 
-    # B. 📅 媽媽坐月餐單 (日期選擇版)
+    # B. 📅 媽媽坐月餐單
     elif mode == "📅 媽媽坐月餐單":
         st.markdown("<h1>📅 媽媽坐月餐單</h1>", unsafe_allow_html=True)
         
-        # 日期選擇器
         picked_date = st.date_input("📅 選擇日期", value=st.session_state.current_date, min_value=SURGERY_DATE)
         st.session_state.current_date = picked_date
         
-        # 計算 Day
         target_day = date_to_day(picked_date)
         
         if target_day == 0:
-            st.warning("今天是手術當天 (Day 0)，建議遵循醫護人員禁食或流質飲食指示。")
+            st.warning("今天是手術當天 (Day 0)，建議遵循醫護指示。")
         
         st.markdown(f"### 🗓️ {picked_date.strftime('%Y年%m月%d日')} (術後 Day {target_day})")
         
@@ -152,10 +129,10 @@ if all_df is not None:
                         st.session_state.view = 'details'
                         st.rerun()
 
-    # C. 🗓️ 每週總覽 (日期標註)
+    # C. 🗓️ 每週總覽
     elif mode == "🗓️ 每週總覽":
         st.markdown("<h1>🗓️ 每週總覽</h1>", unsafe_allow_html=True)
-        week = st.selectbox("選擇週數", ["第 1 週 (Day 1-7)", "第 2 週 (Day 8-14)", "第 3 週 (Day 15-21)", "第 4 週 (Day 22-30)"])
+        week = st.selectbox("選擇週數", ["第 1 週 (Day 1-7)", "第 2 週 (Day 8-14)", "第 3 週 (15-21)", "第 4 週 (22-30)"])
         w_map = {"第 1 週 (Day 1-7)": (1, 7), "第 2 週 (Day 8-14)": (8, 14), "第 3 週 (Day 15-21)": (15, 21), "第 4 週 (Day 22-30)": (22, 30)}
         s, e = w_map[week]
         
@@ -166,48 +143,14 @@ if all_df is not None:
                 items = "".join([f"· <span class='meal-label'>{r['Meal']}</span>: {r['Dish_Name']}<br>" for _, r in d_data.iterrows()])
                 st.markdown(f'<div class="week-card"><b style="color:#D87093;">📅 {d_real} (Day {d})</b><br>{items}</div>', unsafe_allow_html=True)
 
-    # D. 🛒 採購 Check-list (日期選擇版)
-    elif mode == "🛒 採購 Check-list":
-        st.markdown("<h1>🛒 採購 Check-list</h1>", unsafe_allow_html=True)
-        t1, t2 = st.tabs(["📍 按日期顯示", "📅 一次過買幾日"])
-        
-        with t1:
-            chk_date = st.date_input("選擇採購日期", value=st.session_state.current_date, key="chk_date_v4")
-            target_days = [date_to_day(chk_date)]
-        with t2:
-            c1, c2 = st.columns(2)
-            d_start = c1.date_input("由日期", value=SURGERY_DATE + timedelta(days=1))
-            d_end = c2.date_input("至日期", value=SURGERY_DATE + timedelta(days=3))
-            
-            # 將日期範圍轉回 Day List
-            s_day = date_to_day(d_start)
-            e_day = date_to_day(d_end)
-            target_days = list(range(max(0, s_day), max(0, e_day) + 1))
-        
-        data_sum = get_shopping_summary(all_df, target_days)
-        
-        for cat in ["食材", "調味"]:
-            if data_sum[cat]:
-                st.markdown(f'<div class="section-title">{"🍎 主要食材" if cat=="食材" else "🧂 檢查調味"}</div>', unsafe_allow_html=True)
-                st.markdown('<div class="check-card">', unsafe_allow_html=True)
-                for name, info in data_sum[cat].items():
-                    final_details = list(dict.fromkeys(info["details"]))
-                    col_cb, col_exp = st.columns([0.15, 0.85])
-                    with col_cb: st.checkbox("", key=f"cb_v4_{name}_{cat}_{target_days[0]}")
-                    with col_exp:
-                        with st.expander(f"{name} (共 {len(final_details)} 份)"):
-                            for d in final_details:
-                                st.markdown(f'<span class="usage-text">{d}</span>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-    # E. 🔍 食譜大百科
+    # D. 🔍 食譜大百科
     elif mode == "🔍 食譜大百科":
         st.markdown("<h1>🔍 食譜大百科</h1>", unsafe_allow_html=True)
         q = st.text_input("🔍 搜尋食材或菜名：")
         if q:
             s_df = all_df[all_df['Dish_Name'].str.contains(q, na=False, case=False)]
             for _, row in s_df.iterrows():
-                if st.button(f"✨ Day {int(row['Day_Int'])} | {row['Dish_Name']}", key=f"q_v4_{row.name}"):
+                if st.button(f"✨ Day {int(row['Day_Int'])} | {row['Dish_Name']}", key=f"q_{row.name}"):
                     st.session_state.selected_row = row
                     st.session_state.view = 'details'
                     st.rerun()
@@ -218,9 +161,9 @@ if all_df is not None:
                 cat_df = all_df[all_df['Dish_Name'].str.contains('|'.join(kw), na=False, case=False)]
                 unique_dishes = cat_df.drop_duplicates(subset=['Dish_Name'])
                 for _, row in unique_dishes.iterrows():
-                    if st.button(f"▪️ {row['Dish_Name']}", key=f"cat_v4_{cat_name}_{row.name}"):
+                    if st.button(f"▪️ {row['Dish_Name']}", key=f"cat_{cat_name}_{row.name}"):
                         st.session_state.selected_row = row
                         st.session_state.view = 'details'
                         st.rerun()
 else:
-    st.error("載入失敗。")
+    st.error("載入失敗，請檢查資料來源。")
